@@ -28,10 +28,11 @@ ggplot(data, aes(x = T3))+
 cowplot::plot_grid(hg_hist,cort_hist,t3_hist, ncol=1) -> hist_plots
 
 
-min(data$T3)
-max(data$T3)
-mean(data$T3)
-sd(data$T3)/sqrt(length(data$T3))
+min_t3 <- min(data$T3)
+max_t3 <- max(data$T3)
+mean_t3 <- mean(data$T3)
+sd_t3 <- sd(data$T3)
+se_t3 <- sd_t3/sqrt(length(data$T3))
 
 
 # Statistical models ----
@@ -54,11 +55,39 @@ sd(data$T3)/sqrt(length(data$T3))
                         "Null" = lm_t3_null)
   
   aictab_t3 <- aictab(cand.set = candidates_T3) #Breeding location selected
-
-  summary(lm_t3_location)
-  summary(lm_t3_cort_location)
-  summary(lm_t3_sex_location)
-
+  
+  # Add residual error to table and removes LL
+  candidates_T3 <- candidates_T3[match(aictab_t3[,1], names(candidates_T3))]
+  aictab_t3 <- select(aictab_t3, -"LL")
+  for(i in 1:length(candidates_T3)){
+  aictab_t3$StdResErr[i] <- summary(candidates_T3[[i]])$sigma
+  }
+  
+  # Estimates of selected model and CI
+  estimates <- summary(lm_t3_location)$coefficients[,"Estimate"]
+  
+  n <- 79
+  
+    CI95 <- function(n, est, sd){
+      names(est) <- NULL
+      return(c(est - 1.96*(sd/sqrt(n)), est + 1.96*(sd/sqrt(n))))
+    }
+  
+    # 95% CI Florida
+    CI_fl <- CI95(n,
+                  estimates[1],
+                  sd(filter(data, Location == "Florida")$T3))
+    
+    # 95% CI Virginia
+    CI_va <- CI95(n,
+                  estimates[1]+estimates[2],
+                  sd(filter(data, Location == "Virginia")$T3))
+    
+    # 95% CI Wisconsin
+    CI_wi <- CI95(n,
+                  estimates[1]+estimates[3],
+                  sd(filter(data, Location == "Wisconsin")$T3))
+  
 # Plotting figures of predictive models ----
   # Breeding model
   ggplot(data, aes(x=Location, y=T3))+
@@ -80,7 +109,7 @@ sd(data$T3)/sqrt(length(data$T3))
            cbind(get(tab)[1:2], #Gets columns 1 and 2 as normal
                  round(as_tibble(get(tab))[3:8],2))) #Rounds columns 3 to 8 up to 2 decimal points
     assign(tab,
-           rename(get(tab), 'Model predictor' = Modnames)) #Renames Modnames column
+           rename(get(tab), 'Predictors' = Modnames, "ΔAICc" = Delta_AICc, "CumWt" = Cum.Wt)) #Renames columns
     write.csv(get(tab), paste("Tables/",tab,".csv",sep=""), row.names=F) #Exports aictabs
   }
   
